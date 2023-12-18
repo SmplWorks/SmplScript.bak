@@ -9,6 +9,10 @@ pub enum LexerError {
 pub enum Token {
     Number(String),
     Identifier(String),
+
+    // Keywords
+    Function,
+    Return,
 }
 
 pub type LexerRes<T> = Result<T, LexerError>;
@@ -28,7 +32,12 @@ fn get_number(c : char, chars : &mut Chars) -> LexerRes<Token> {
 }
 
 fn get_ident(c : char, chars : &mut Chars) -> LexerRes<Token> {
-    Ok(Token::Identifier(c.to_string() + &chars.take_while(|c| c.is_alphanumeric() || c == &'_').collect::<String>()))
+    let ident = c.to_string() + &chars.take_while(|c| c.is_alphanumeric() || c == &'_').collect::<String>();
+    Ok(match &*ident {
+        "fn" => Token::Function,
+        "return" => Token::Return,
+        _ => Token::Identifier(ident),
+    })
 }
 
 pub fn gettok(chars : &mut Chars) -> LexerRes<Token> {
@@ -56,4 +65,7 @@ fn test_get_identifier() {
     assert_eq!(gettok(&mut "gali leo".chars()), Ok(Token::Identifier("gali".to_string())));
     assert_eq!(gettok(&mut "g4l1l30".chars()), Ok(Token::Identifier("g4l1l30".to_string())));
     assert_eq!(gettok(&mut "gali_leo".chars()), Ok(Token::Identifier("gali_leo".to_string())));
+
+    assert_eq!(gettok(&mut "fn".chars()), Ok(Token::Function));
+    assert_eq!(gettok(&mut "return".chars()), Ok(Token::Return));
 }
