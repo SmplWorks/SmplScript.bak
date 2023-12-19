@@ -1,7 +1,7 @@
 use std::{str::Chars, iter::Peekable};
 use super::error::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Number(String),
     Identifier(String),
