@@ -13,6 +13,7 @@ pub enum Token {
     Return, // return
     Let, // let
     LAnd, LOr, LNot, // and or not
+    None, True, False, // none true false
 
     LParen, RParen, // ( )
     LBrack, RBrack, // { }
@@ -59,6 +60,9 @@ impl Display for Token {
             Self::LAnd => write!(f, "and"),
             Self::LOr => write!(f, "or"),
             Self::LNot => write!(f, "not"),
+            Self::None => write!(f, "none"),
+            Self::True => write!(f, "true"),
+            Self::False => write!(f, "false"),
             Self::LParen => write!(f, "("), Token::RParen => write!(f, ")"),
             Self::LBrack => write!(f, "{}", '{'), Token::RBrack => write!(f, "{}", '}'),
             Self::Comma => write!(f, ","), Token::SemiColon => write!(f, ";"),
@@ -109,6 +113,9 @@ fn get_ident(chars : &mut Peekable<Chars>) -> SRes<Token> {
         "and" => Token::LAnd,
         "or" => Token::LOr,
         "not" => Token::LNot,
+        "none" => Token::None,
+        "true" => Token::True,
+        "false" => Token::False,
         _ => Token::Identifier(ident),
     })
 }
@@ -176,6 +183,9 @@ fn test_get_identifier() {
     assert_eq!(gettok_str("and"), Ok(Token::LAnd));
     assert_eq!(gettok_str("or"), Ok(Token::LOr));
     assert_eq!(gettok_str("not"), Ok(Token::LNot));
+    assert_eq!(gettok_str("none"), Ok(Token::None));
+    assert_eq!(gettok_str("true"), Ok(Token::True));
+    assert_eq!(gettok_str("false"), Ok(Token::False));
 }
 
 #[test]

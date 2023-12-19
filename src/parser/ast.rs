@@ -4,6 +4,8 @@ use crate::utils::{SError, SRes};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    None,
+    Bool(bool),
     Number(i32),
     Block(Vec<Expr>),
     Function{
@@ -40,8 +42,16 @@ fn collect_while(toks : &mut Peekable<Tokens>, f : impl Fn(&Token) -> bool) -> S
     return Ok(exprs);
 }
 
+fn parse_none(_toks : &mut Peekable<Tokens>) -> SRes<Expr> {
+    Ok(Expr::None)
+}
+
 fn parse_number(s : &String, _toks : &mut Peekable<Tokens>) -> SRes<Expr> {
     Ok(Expr::Number(s.parse().map_err(|_| SError::ParserInvalidNumber)?))
+}
+
+fn parse_bool(value : bool, _toks : &mut Peekable<Tokens>) -> SRes<Expr> {
+    Ok(Expr::Bool(value))
 }
 
 fn parse_block(toks : &mut Peekable<Tokens>) -> SRes<Expr> {
@@ -107,7 +117,10 @@ fn parse_identifier(s : &String, _toks : &mut Peekable<Tokens>) -> SRes<Expr> {
 
 fn parse_primary(t : Token, toks : &mut Peekable<Tokens>) -> SRes<Expr> {
     match t {
+        Token::None => parse_none(toks),
         Token::Number(s) => parse_number(&s, toks),
+        Token::True => parse_bool(true, toks),
+        Token::False => parse_bool(false, toks),
         Token::LBrack => parse_block(toks),
         Token::LParen => parse_paren(toks),
         Token::Function => parse_function(toks),
@@ -161,6 +174,17 @@ pub fn parse_str(s : &str) -> SRes<Expr> {
 
 pub fn parse_string(s : &String) -> SRes<Expr> {
     parse_str(&*s)
+}
+
+#[test]
+fn test_parse_none() {
+    assert_eq!(parse_str("none"), Ok(Expr::None));
+}
+
+#[test]
+fn test_parse_bool() {
+    assert_eq!(parse_str("true"), Ok(Expr::Bool(true)));
+    assert_eq!(parse_str("false"), Ok(Expr::Bool(false)));
 }
 
 #[test]
