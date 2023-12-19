@@ -20,7 +20,7 @@ fn collect_while(toks : &mut Peekable<Tokens>, f : impl Fn(&Token) -> bool) -> P
     let mut exprs = vec![];
     loop {
         let t = nexttok(toks)?;
-        if f(&t) {
+        if !f(&t) {
             break;
         }
 
@@ -34,7 +34,7 @@ fn parse_number(s : &String, _toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
 }
 
 fn parse_block(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
-    Ok(Expr::Block(collect_while(toks, |t| *t == Token::RBrack)?))
+    Ok(Expr::Block(collect_while(toks, |t| *t != Token::RBrack)?))
 }
 
 fn parse_tok(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
