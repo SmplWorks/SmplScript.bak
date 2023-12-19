@@ -10,17 +10,26 @@ pub enum Token {
     Function, // fn
     Return, // return
     Let, // let
+    LAnd, LOr, LNot, // and or not
 
     LParen, RParen, // ( )
     LBrack, RBrack, // { }
     Comma, SemiColon, // , ;
     Assign, // =
+    Not, // !
+    Add, Sub, // + -
+    Mul, Div, // * /
+    Equals, Nequals, // == !=
+    LeThan, LeqThan, // < <=
+    GeThan, GeqThan, // > >=
 }
 
 impl Token {
     pub fn is_binary_operator(&self) -> bool {
         match self {
-            Self::Assign => true,
+            Self::Assign | Self::LAnd | Self::LOr | Self::LNot | Self::Add |
+            Self::Sub | Self::Mul | Self::Div | Self::Equals | Self::Nequals | Self::LeThan | Self::LeqThan |
+            Self::GeThan | Self::GeqThan => true,
             _ => false,
         }
     }
@@ -28,6 +37,7 @@ impl Token {
     pub fn get_precedence(&self) -> i32 {
         match self {
             Self::Assign => 2,
+            Self::Add | Self::Sub => 10,
             _ => -1,
         }
     }
@@ -41,10 +51,19 @@ impl Display for Token {
             Self::Function => write!(f, "fn"),
             Self::Return => write!(f, "return"),
             Self::Let => write!(f, "let"),
+            Self::LAnd => write!(f, "and"),
+            Self::LOr => write!(f, "or"),
+            Self::LNot => write!(f, "not"),
             Self::LParen => write!(f, "("), Token::RParen => write!(f, ")"),
             Self::LBrack => write!(f, "{}", '{'), Token::RBrack => write!(f, "{}", '}'),
             Self::Comma => write!(f, ","), Token::SemiColon => write!(f, ";"),
             Self::Assign => write!(f, "="),
+            Self::Not => write!(f, "!"),
+            Self::Add => write!(f, "+"), Self::Sub => write!(f, "-"),
+            Self::Mul => write!(f, "*"), Self::Div => write!(f, "/"),
+            Self::Equals => write!(f, "=="), Self::Nequals => write!(f, "!="),
+            Self::LeThan => write!(f, "<"), Self::LeqThan => write!(f, "<="),
+            Self::GeThan => write!(f, ">"), Self::GeqThan => write!(f, ">="),
         }
     }
 }
@@ -82,8 +101,21 @@ fn get_ident(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
         "fn" => Token::Function,
         "return" => Token::Return,
         "let" => Token::Let,
+        "and" => Token::LAnd,
+        "or" => Token::LOr,
+        "not" => Token::LNot,
         _ => Token::Identifier(ident),
     })
+}
+
+fn foo(next : char, option_a : Token, option_b : Token, chars : &mut Peekable<Chars>) -> LexerRes<Token> {
+    if let Some(c) = chars.peek() {
+        if *c == next {
+            chars.next();
+            return Ok(option_a)
+        }
+    }
+    return Ok(option_b)
 }
 
 pub fn gettok(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
@@ -99,8 +131,13 @@ pub fn gettok(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
             '(' => Ok(Token::LParen), ')' => Ok(Token::RParen),
             '{' => Ok(Token::LBrack), '}' => Ok(Token::RBrack),
             ',' => Ok(Token::Comma), ';' => Ok(Token::SemiColon),
-            '=' => Ok(Token::Assign),
-            _ => todo!(),
+            '=' => foo('=', Token::Equals, Token::Assign, chars),
+            '+' => Ok(Token::Add), '-' => Ok(Token::Sub),
+            '*' => Ok(Token::Mul), '/' => Ok(Token::Div),
+            '!' => foo('=', Token::Nequals, Token::Not, chars),
+            '<' => foo('=', Token::LeqThan, Token::LeThan, chars),
+            '>' => foo('=', Token::GeqThan, Token::GeThan, chars),
+            _ => Err(LexerError::UnknownToken),
         }
     }
 }
@@ -131,6 +168,9 @@ fn test_get_identifier() {
     assert_eq!(gettok_str("fn"), Ok(Token::Function));
     assert_eq!(gettok_str("return"), Ok(Token::Return));
     assert_eq!(gettok_str("let"), Ok(Token::Let));
+    assert_eq!(gettok_str("and"), Ok(Token::LAnd));
+    assert_eq!(gettok_str("or"), Ok(Token::LOr));
+    assert_eq!(gettok_str("not"), Ok(Token::LNot));
 }
 
 #[test]
@@ -143,4 +183,15 @@ fn test_misc() {
     assert_eq!(gettok_str(","), Ok(Token::Comma));
     assert_eq!(gettok_str(";"), Ok(Token::SemiColon));
     assert_eq!(gettok_str("="), Ok(Token::Assign));
+    assert_eq!(gettok_str("+"), Ok(Token::Add));
+    assert_eq!(gettok_str("-"), Ok(Token::Sub));
+    assert_eq!(gettok_str("*"), Ok(Token::Mul));
+    assert_eq!(gettok_str("/"), Ok(Token::Div));
+    assert_eq!(gettok_str("=="), Ok(Token::Equals));
+    assert_eq!(gettok_str("= ="), Ok(Token::Assign));
+    assert_eq!(gettok_str("!="), Ok(Token::Nequals));
+    assert_eq!(gettok_str("<"), Ok(Token::LeThan));
+    assert_eq!(gettok_str("<="), Ok(Token::LeqThan));
+    assert_eq!(gettok_str(">"), Ok(Token::GeThan));
+    assert_eq!(gettok_str(">="), Ok(Token::GeqThan));
 }

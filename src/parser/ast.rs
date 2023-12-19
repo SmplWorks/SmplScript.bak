@@ -184,6 +184,9 @@ fn test_parse_varref() {
 
 #[test]
 fn test_parse_binaryop() {
+    assert_eq!(parse_str("0 + 1"), Ok(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::Number(1)) }));
+    assert_eq!(parse_str("0 + 1 - 2"), Ok(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::Number(1)) }));
+
     assert_eq!(parse_str("x = 0"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::Number(0)) }));
     assert_eq!(parse_str("x = y"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::VarRef("y".to_string())) }));
     assert_eq!(parse_str("0 = x"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::VarRef("x".to_string())) }));
