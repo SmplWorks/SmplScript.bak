@@ -1,5 +1,5 @@
 use std::{str::Chars, iter::Peekable};
-use super::token::*;
+use super::{Token, gettok};
 
 pub struct Tokens<'a> {
     chars : Peekable<Chars<'a>>,

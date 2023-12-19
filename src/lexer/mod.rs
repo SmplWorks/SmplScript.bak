@@ -1,9 +1,7 @@
 mod tokenizer;
 mod token;
-mod error;
 pub use tokenizer::*;
 pub use token::*;
-pub use error::*;
 
 #[test]
 fn test_full_function() {

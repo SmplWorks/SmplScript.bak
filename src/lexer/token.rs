@@ -1,5 +1,7 @@
 use std::{str::Chars, iter::Peekable, fmt::Display};
-use super::error::*;
+
+//use super::*;
+use crate::utils::{SError, SRes};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -71,14 +73,14 @@ impl Display for Token {
     }
 }
 
-fn skip_whitespace(chars : &mut Peekable<Chars>) -> LexerRes<char> {
+fn skip_whitespace(chars : &mut Peekable<Chars>) -> SRes<char> {
     while let Some(c) = chars.peek() {
         if !c.is_whitespace() {
             return Ok(*c)
         }
         chars.next();
     }
-    Err(LexerError::EOF)
+    Err(SError::LexerEOF)
 }
 
 fn collect_while(chars : &mut Peekable<Chars>, f : impl Fn(&char) -> bool) -> String {
@@ -93,12 +95,12 @@ fn collect_while(chars : &mut Peekable<Chars>, f : impl Fn(&char) -> bool) -> St
     return s;
 }
 
-fn get_number(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
+fn get_number(chars : &mut Peekable<Chars>) -> SRes<Token> {
     // TODO: Different bases and '_'
     Ok(Token::Number(collect_while(chars, |c| c.is_digit(10))))
 }
 
-fn get_ident(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
+fn get_ident(chars : &mut Peekable<Chars>) -> SRes<Token> {
     let ident = collect_while(chars, |c| c.is_alphanumeric() || *c == '_');
     Ok(match &*ident {
         "fn" => Token::Function,
@@ -111,7 +113,7 @@ fn get_ident(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
     })
 }
 
-fn foo(next : char, option_a : Token, option_b : Token, chars : &mut Peekable<Chars>) -> LexerRes<Token> {
+fn foo(next : char, option_a : Token, option_b : Token, chars : &mut Peekable<Chars>) -> SRes<Token> {
     if let Some(c) = chars.peek() {
         if *c == next {
             chars.next();
@@ -121,7 +123,7 @@ fn foo(next : char, option_a : Token, option_b : Token, chars : &mut Peekable<Ch
     return Ok(option_b)
 }
 
-pub fn gettok(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
+pub fn gettok(chars : &mut Peekable<Chars>) -> SRes<Token> {
     let c = skip_whitespace(chars)?;
 
     if c.is_digit(10) {
@@ -140,16 +142,16 @@ pub fn gettok(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
             '!' => foo('=', Token::Nequals, Token::Not, chars),
             '<' => foo('=', Token::LeqThan, Token::LeThan, chars),
             '>' => foo('=', Token::GeqThan, Token::GeThan, chars),
-            _ => Err(LexerError::UnknownToken),
+            _ => Err(SError::LexerUnknownToken),
         }
     }
 }
 
-pub fn gettok_str(s : &str) -> LexerRes<Token> {
+pub fn gettok_str(s : &str) -> SRes<Token> {
     gettok(&mut s.chars().peekable())
 }
 
-pub fn gettok_string(s : &String) -> LexerRes<Token> {
+pub fn gettok_string(s : &String) -> SRes<Token> {
     gettok_str(&*s)
 }
 
@@ -178,7 +180,7 @@ fn test_get_identifier() {
 
 #[test]
 fn test_misc() {
-    assert_eq!(gettok_str(""), Err(LexerError::EOF));
+    assert_eq!(gettok_str(""), Err(SError::LexerEOF));
     assert_eq!(gettok_str("("), Ok(Token::LParen));
     assert_eq!(gettok_str(")"), Ok(Token::RParen));
     assert_eq!(gettok_str("{"), Ok(Token::LBrack));
