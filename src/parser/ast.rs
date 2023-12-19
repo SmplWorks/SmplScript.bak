@@ -2,12 +2,11 @@ use std::iter::Peekable;
 use crate::lexer::{Token, Tokens, tokenize};
 use crate::utils::{SError, SRes};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Number(i32),
     Block(Vec<Expr>),
     Function{
-        name : String,
         params : Vec<String>,
         body : Box<Expr>,
     },
@@ -91,7 +90,11 @@ fn parse_function(toks : &mut Peekable<Tokens>) -> SRes<Expr> {
     let params = parse_params(toks)?;
     let body = Box::new(parse(toks)?);
 
-    Ok(Expr::Function { name, params, body })
+    Ok(Expr::BinaryOp {
+        op: "=".to_string(),
+        lhs: Box::new(Expr::VarRef(name)),
+        rhs: Box::new(Expr::Function { params, body }),
+    })
 }
 
 fn parse_return(toks : &mut Peekable<Tokens>) -> SRes<Expr> {
@@ -184,9 +187,9 @@ fn test_parse_paren() {
 
 #[test]
 fn test_parse_function() {
-    assert_eq!(parse_str("fn zero() 0"), Ok(Expr::Function{name: "zero".to_string(), params: vec![], body: Box::new(Expr::Number(0))}));
-    assert_eq!(parse_str("fn oneParam(x) {}"), Ok(Expr::Function{name: "oneParam".to_string(), params: vec!["x".to_string()], body: Box::new(Expr::Block(vec![]))}));
-    assert_eq!(parse_str("fn twoParams(x, y) {}"), Ok(Expr::Function{name: "twoParams".to_string(), params: vec!["x".to_string(), "y".to_string()], body: Box::new(Expr::Block(vec![]))}));
+    assert_eq!(parse_str("fn zero() 0"), Ok(Expr::BinaryOp{op: "=".to_string(), lhs: Box::new(Expr::VarRef("zero".to_string())), rhs: Box::new(Expr::Function{ params: vec![], body: Box::new(Expr::Number(0))})}));
+    assert_eq!(parse_str("fn oneParam(x) {}"), Ok(Expr::BinaryOp{op: "=".to_string(), lhs: Box::new(Expr::VarRef("oneParam".to_string())), rhs: Box::new(Expr::Function{ params: vec!["x".to_string()], body: Box::new(Expr::Block(vec![]))})}));
+    assert_eq!(parse_str("fn twoParams(x, y) {}"), Ok(Expr::BinaryOp{op: "=".to_string(), lhs: Box::new(Expr::VarRef("twoParams".to_string())), rhs: Box::new(Expr::Function{ params: vec!["x".to_string(), "y".to_string()], body: Box::new(Expr::Block(vec![]))})}));
     assert_eq!(parse_str("fn () {}"), Err(SError::ParserInvalidFunctionNoName));
     assert_eq!(parse_str("fn main {}"), Err(SError::ParserInvalidFunctionNoLParen));
     assert_eq!(parse_str("fn main (x y) {}"), Err(SError::ParserInvalidFunctionMissingComma));
