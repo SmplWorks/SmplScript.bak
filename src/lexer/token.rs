@@ -37,7 +37,10 @@ impl Token {
     pub fn get_precedence(&self) -> i32 {
         match self {
             Self::Assign => 2,
-            Self::Add | Self::Sub => 10,
+            Self::LAnd | Self::LOr => 9,
+            Self::Equals | Self::Nequals | Self::LeThan | Self::LeqThan | Self::GeThan | Self::GeqThan => 10,
+            Self::Add | Self::Sub => 20,
+            Self::Mul | Self::Div => 40,
             _ => -1,
         }
     }

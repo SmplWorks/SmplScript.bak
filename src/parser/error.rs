@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub enum ParserError {
     EOF,
+    ExpectedClosingParen,
 
     InvalidNumber,
 

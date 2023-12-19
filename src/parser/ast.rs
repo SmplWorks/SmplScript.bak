@@ -49,6 +49,15 @@ fn parse_block(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     Ok(Expr::Block(collect_while(toks, |t| *t != Token::RBrack)?))
 }
 
+fn parse_paren(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    let expr = parse(toks)?;
+    match nexttok(toks) {
+        Ok(Token::RParen) => Ok(expr),
+        Ok(_) | Err(ParserError::EOF) => Err(ParserError::ExpectedClosingParen),
+        Err(err) => Err(err),
+    }
+}
+
 fn parse_params(toks : &mut Peekable<Tokens>) -> ParserRes<Vec<String>> {
     if nexttok(toks)? != Token::LParen { // Check for '('
         return Err(ParserError::InvalidFunctionNoLParen)
@@ -97,6 +106,7 @@ fn parse_primary(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     match t {
         Token::Number(s) => parse_number(&s, toks),
         Token::LBrack => parse_block(toks),
+        Token::LParen => parse_paren(toks),
         Token::Function => parse_function(toks),
         Token::Return => parse_return(toks),
         Token::Identifier(s) => parse_identifier(&s, toks),
@@ -106,16 +116,17 @@ fn parse_primary(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
 
 fn parse_binop_rhs(expr_prec : i32, mut lhs : Expr, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     loop {
-        let tok_prec = peektok(toks)?.get_precedence();
+        let tok_prec = peektok(toks).map_or(-1, |t| t.get_precedence());
         if tok_prec < expr_prec {
             return Ok(lhs)
         }
 
         let op = nexttok(toks)?.to_string();
 
-        match parse_primary(peektok(toks)?, toks) {
-            Ok(mut rhs) => {
-                let next_prec = peektok(toks)?.get_precedence();
+        match nexttok(toks) {
+            Ok(t) => {
+                let mut rhs = parse_primary(t, toks)?;
+                let next_prec = peektok(toks).map_or(-1, |t| t.get_precedence());
                 if tok_prec < next_prec {
                     rhs = parse_binop_rhs(tok_prec+1, rhs, toks)?;
                 }
@@ -125,7 +136,6 @@ fn parse_binop_rhs(expr_prec : i32, mut lhs : Expr, toks : &mut Peekable<Tokens>
             Err(ParserError::EOF) => return Ok(lhs),
             Err(err) => return Err(err),
         }
-
     }
 }
 
@@ -160,7 +170,16 @@ fn test_parse_block() {
     assert_eq!(parse_str("{}"), Ok(Expr::Block(vec![])));
     assert_eq!(parse_str("{0}"), Ok(Expr::Block(vec![Expr::Number(0)])));
     assert_eq!(parse_str("{{0}}"), Ok(Expr::Block(vec![Expr::Block(vec![Expr::Number(0)])])));
+    assert_eq!(parse_str("{{0 1}}"), Ok(Expr::Block(vec![Expr::Block(vec![Expr::Number(0), Expr::Number(1)])])));
     assert_eq!(parse_str("{"), Err(ParserError::EOF));
+}
+
+#[test]
+fn test_parse_paren() {
+    assert_eq!(parse_str("(0)"), Ok(Expr::Number(0)));
+    assert_eq!(parse_str("((0))"), Ok(Expr::Number(0)));
+    assert_eq!(parse_str("("), Err(ParserError::EOF));
+    assert_eq!(parse_str("(0"), Err(ParserError::ExpectedClosingParen));
 }
 
 #[test]
@@ -178,6 +197,12 @@ fn test_parse_function() {
 }
 
 #[test]
+fn test_parse_return() {
+    assert_eq!(parse_str("return 0"), Ok(Expr::Return(Box::new(Expr::Number(0)))));
+    assert_eq!(parse_str("return"), Err(ParserError::EOF)); // TODO: Allow return with nothing
+}
+
+#[test]
 fn test_parse_varref() {
     assert_eq!(parse_str("x"), Ok(Expr::VarRef("x".to_string())));
 }
@@ -185,7 +210,8 @@ fn test_parse_varref() {
 #[test]
 fn test_parse_binaryop() {
     assert_eq!(parse_str("0 + 1"), Ok(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::Number(1)) }));
-    assert_eq!(parse_str("0 + 1 - 2"), Ok(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::Number(1)) }));
+    assert_eq!(parse_str("0 + 1 - 2"), Ok(Expr::BinaryOp { op: "-".to_string(), lhs: Box::new(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::Number(1)) }), rhs: Box::new(Expr::Number(2))}));
+    assert_eq!(parse_str("0 + 1 * 2"), Ok(Expr::BinaryOp { op: "+".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::BinaryOp { op: "*".to_string(), lhs: Box::new(Expr::Number(1)), rhs: Box::new(Expr::Number(2)) }) }));
 
     assert_eq!(parse_str("x = 0"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::Number(0)) }));
     assert_eq!(parse_str("x = y"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::VarRef("y".to_string())) }));
