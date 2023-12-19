@@ -1,4 +1,4 @@
-use std::iter::Peekable;
+use std::{iter::Peekable, string::ParseError};
 use crate::lexer::{Token, Tokens, tokenize};
 use super::*;
 
@@ -43,27 +43,37 @@ fn parse_block(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     Ok(Expr::Block(collect_while(toks, |t| *t != Token::RBrack)?))
 }
 
-fn parse_function(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
-    let Token::Identifier(name) = nexttok(toks)? else { return Err(ParserError::InvalidFunction("Expected function name")) };
-    if nexttok(toks)? != Token::LParen { return Err(ParserError::InvalidFunction("Expected '('")) }
-    let params = {
-        let mut params = vec![]; 
-        let mut allow_comma = false;
-        loop {
-            match nexttok(toks)? {
-                Token::Identifier(s) => {
-                    allow_comma = true;
-                    params.push(s);
-                },
-                Token::Comma => if !allow_comma {
-                    return Err(ParserError::InvalidFunction("Found \",\" when expecting either identifier or \")\""))
-                },
-                Token::RParen => break,
-                _ => return Err(ParserError::InvalidFunction("Invalid token when expecting function parameters"))
-            }
+fn parse_params(toks : &mut Peekable<Tokens>) -> ParserRes<Vec<String>> {
+    if nexttok(toks)? != Token::LParen { // Check for '('
+        return Err(ParserError::InvalidFunctionNoLParen)
+    }
+
+    let mut params = vec![]; 
+    let mut first = true;
+    let mut expect_identifier = true;
+    loop {
+        match nexttok(toks)? {
+            Token::Identifier(s) => if expect_identifier {
+                expect_identifier = false;
+                params.push(s);
+            } else { return Err(ParserError::InvalidFunctionMissingComma) },
+            Token::Comma => if !expect_identifier {
+                expect_identifier = true;
+            } else { return Err(ParserError::InvalidFunctionExtraComma) },
+            Token::RParen => if !expect_identifier || first {
+                break
+            } else { return Err(ParserError::InvalidFunctionExpectedParam) },
+            _ => return Err(ParserError::InvalidFunctionInvalidToken)
         }
-        params
-    };
+
+        first = false;
+    }
+    return Ok(params);
+}
+
+fn parse_function(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    let Token::Identifier(name) = nexttok(toks)? else { return Err(ParserError::InvalidFunctionNoName) };
+    let params = parse_params(toks)?;
     let body = Box::new(parse(toks)?);
 
     Ok(Expr::Function { name, params, body })
@@ -105,6 +115,7 @@ fn test_parse_block() {
     assert_eq!(parse_str("{}"), Ok(Expr::Block(vec![])));
     assert_eq!(parse_str("{0}"), Ok(Expr::Block(vec![Expr::Number(0)])));
     assert_eq!(parse_str("{{0}}"), Ok(Expr::Block(vec![Expr::Block(vec![Expr::Number(0)])])));
+    assert_eq!(parse_str("{"), Err(ParserError::EOF));
 }
 
 #[test]
@@ -112,4 +123,11 @@ fn test_parse_function() {
     assert_eq!(parse_str("fn zero() 0"), Ok(Expr::Function{name: "zero".to_string(), params: vec![], body: Box::new(Expr::Number(0))}));
     assert_eq!(parse_str("fn oneParam(x) {}"), Ok(Expr::Function{name: "oneParam".to_string(), params: vec!["x".to_string()], body: Box::new(Expr::Block(vec![]))}));
     assert_eq!(parse_str("fn twoParams(x, y) {}"), Ok(Expr::Function{name: "twoParams".to_string(), params: vec!["x".to_string(), "y".to_string()], body: Box::new(Expr::Block(vec![]))}));
+    assert_eq!(parse_str("fn () {}"), Err(ParserError::InvalidFunctionNoName));
+    assert_eq!(parse_str("fn main {}"), Err(ParserError::InvalidFunctionNoLParen));
+    assert_eq!(parse_str("fn main (x y) {}"), Err(ParserError::InvalidFunctionMissingComma));
+    assert_eq!(parse_str("fn main (,) {}"), Err(ParserError::InvalidFunctionExtraComma));
+    assert_eq!(parse_str("fn main (,x) {}"), Err(ParserError::InvalidFunctionExtraComma));
+    assert_eq!(parse_str("fn main (x,) {}"), Err(ParserError::InvalidFunctionExpectedParam));
+    assert_eq!(parse_str("fn main (fn x) {}"), Err(ParserError::InvalidFunctionInvalidToken));
 }
