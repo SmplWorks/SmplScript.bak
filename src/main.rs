@@ -1,6 +1,7 @@
+mod utils;
 mod lexer;
 mod parser;
-mod utils;
+mod vm;
 
 fn main() {
     println!("Hello, world!");
