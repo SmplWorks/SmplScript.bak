@@ -6,6 +6,12 @@ use super::*;
 pub enum Expr {
     Number(i32),
     Block(Vec<Expr>),
+    Function{
+        name : String,
+        params : Vec<String>,
+        body : Box<Expr>,
+    },
+    Return(Box<Expr>),
 }
 
 fn peektok(toks : &mut Peekable<Tokens>) -> ParserRes<Token> {
@@ -37,11 +43,43 @@ fn parse_block(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     Ok(Expr::Block(collect_while(toks, |t| *t != Token::RBrack)?))
 }
 
+fn parse_function(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    let Token::Identifier(name) = nexttok(toks)? else { return Err(ParserError::InvalidFunction("Expected function name")) };
+    if nexttok(toks)? != Token::LParen { return Err(ParserError::InvalidFunction("Expected '('")) }
+    let params = {
+        let mut params = vec![]; 
+        let mut allow_comma = false;
+        loop {
+            match nexttok(toks)? {
+                Token::Identifier(s) => {
+                    allow_comma = true;
+                    params.push(s);
+                },
+                Token::Comma => if !allow_comma {
+                    return Err(ParserError::InvalidFunction("Found \",\" when expecting either identifier or \")\""))
+                },
+                Token::RParen => break,
+                _ => return Err(ParserError::InvalidFunction("Invalid token when expecting function parameters"))
+            }
+        }
+        params
+    };
+    let body = Box::new(parse(toks)?);
+
+    Ok(Expr::Function { name, params, body })
+}
+
+fn parse_return(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    return Ok(Expr::Return(Box::new(parse(toks)?)))
+}
+
 fn parse_tok(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     match t {
         Token::Number(s) => parse_number(&s, toks),
         Token::LBrack => parse_block(toks),
-        _ => todo!("{:?}", peektok(toks)),
+        Token::Function => parse_function(toks),
+        Token::Return => parse_return(toks),
+        _ => todo!("{:?}", t),
     }
 }
 
@@ -67,4 +105,11 @@ fn test_parse_block() {
     assert_eq!(parse_str("{}"), Ok(Expr::Block(vec![])));
     assert_eq!(parse_str("{0}"), Ok(Expr::Block(vec![Expr::Number(0)])));
     assert_eq!(parse_str("{{0}}"), Ok(Expr::Block(vec![Expr::Block(vec![Expr::Number(0)])])));
+}
+
+#[test]
+fn test_parse_function() {
+    assert_eq!(parse_str("fn zero() 0"), Ok(Expr::Function{name: "zero".to_string(), params: vec![], body: Box::new(Expr::Number(0))}));
+    assert_eq!(parse_str("fn oneParam(x) {}"), Ok(Expr::Function{name: "oneParam".to_string(), params: vec!["x".to_string()], body: Box::new(Expr::Block(vec![]))}));
+    assert_eq!(parse_str("fn twoParams(x, y) {}"), Ok(Expr::Function{name: "twoParams".to_string(), params: vec!["x".to_string(), "y".to_string()], body: Box::new(Expr::Block(vec![]))}));
 }
