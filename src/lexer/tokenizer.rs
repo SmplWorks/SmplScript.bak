@@ -1,18 +1,18 @@
-use std::str::Chars;
+use std::{str::Chars, iter::Peekable};
 use super::token::*;
 
 pub struct Tokens<'a> {
-    chars : &'a mut Chars<'a>,
+    chars : Peekable<Chars<'a>>,
 }
 
 impl Iterator for Tokens<'_> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        gettok(self.chars).ok()
+        gettok(&mut self.chars).ok()
     }
 }
 
-pub fn tokenize<'a>(chars : &'a mut Chars<'a>) -> Tokens<'a> {
-    Tokens{ chars }
+pub fn tokenize(chars : Chars) -> Tokens {
+    Tokens{ chars: chars.peekable() }
 }
