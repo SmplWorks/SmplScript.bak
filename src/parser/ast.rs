@@ -14,6 +14,7 @@ pub enum Expr {
     },
     Return(Box<Expr>),
     VarRef(String),
+    Call{ callee: String, args: Vec<Expr> },
     BinaryOp{
         op: String,
         lhs : Box<Expr>,
@@ -111,8 +112,36 @@ fn parse_return(toks : &mut Peekable<Tokens>) -> SRes<Expr> {
     return Ok(Expr::Return(Box::new(parse(toks)?)))
 }
 
-fn parse_identifier(s : &String, _toks : &mut Peekable<Tokens>) -> SRes<Expr> {
-    Ok(Expr::VarRef(s.clone()))
+fn parse_call_args(toks : &mut Peekable<Tokens>) -> SRes<Vec<Expr>> {
+    if let Ok(Token::RParen) = peektok(toks) {
+        #[allow(unused_must_use)] { // Consume RParen
+            nexttok(toks);
+        }
+        return Ok(vec![])
+    }
+
+    let mut args = vec![]; 
+    loop {
+        args.push(parse(toks)?);
+
+        match nexttok(toks)? {
+            Token::RParen => break,
+            Token::Comma => continue,
+            _ => return Err(SError::ParserInvalidCallMissingComma),
+        }
+    }
+    return Ok(args);
+}
+
+fn parse_identifier(s : &String, toks : &mut Peekable<Tokens>) -> SRes<Expr> {
+    if let Ok(Token::LParen) = peektok(toks) {
+        #[allow(unused_must_use)] {
+            nexttok(toks);
+        }
+        Ok(Expr::Call { callee: s.clone(), args: parse_call_args(toks)? })
+    } else {
+        Ok(Expr::VarRef(s.clone()))
+    }
 }
 
 fn parse_primary(t : Token, toks : &mut Peekable<Tokens>) -> SRes<Expr> {
@@ -232,6 +261,13 @@ fn test_parse_return() {
 #[test]
 fn test_parse_varref() {
     assert_eq!(parse_str("x"), Ok(Expr::VarRef("x".to_string())));
+}
+
+#[test]
+fn test_parse_call() {
+    assert_eq!(parse_str("zero()"), Ok(Expr::Call { callee: "zero".to_string(), args: vec![] }));
+    assert_eq!(parse_str("one(0)"), Ok(Expr::Call { callee: "one".to_string(), args: vec![Expr::Number(0)] }));
+    assert_eq!(parse_str("two(0, 1)"), Ok(Expr::Call { callee: "two".to_string(), args: vec![Expr::Number(0), Expr::Number(1)] }));
 }
 
 #[test]

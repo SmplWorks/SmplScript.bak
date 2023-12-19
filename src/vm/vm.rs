@@ -2,7 +2,7 @@ use std::{collections::HashMap, cell::RefCell, rc::Rc};
 use crate::parser::{Expr, parse_str};
 use crate::utils::{SError, SRes};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SValue {
     None,
     Number(i32),
@@ -21,6 +21,7 @@ impl SValue {
     }
 }
 
+#[derive(Debug)]
 pub struct SContext {
     vars : HashMap<String, Rc<RefCell<SValue>>>,
 }
@@ -46,22 +47,37 @@ fn execute_bool(value : bool, _ctx : &mut SContext) -> SRes<SValue> {
 }
 
 fn execute_block(exprs : &Vec<Expr>, ctx : &mut SContext) -> SRes<SValue> {
-    exprs.iter().fold(Ok(SValue::None), |_, e| Ok(execute(e, ctx)?))
+    exprs.iter().fold(Ok(SValue::None), |_, e| Ok(execute_expr(e, ctx)?))
 }
 
 fn execute_function(params : &Vec<String>, body : &Expr, _ctx : &mut SContext) -> SRes<SValue> {
     Ok(SValue::Function { params: params.clone(), body: body.clone() })
 }
 
+fn execute_call(callee : &String, args : &Vec<Expr>, ctx : &mut SContext) -> SRes<SValue> {
+    let SValue::Function { params, body } = ctx.vars.get(callee).ok_or(SError::VMVariableDoesntExist)?.borrow().clone() else { return Err(SError::VMCannotCallNonFunction) };
+
+    if params.len() != args.len() {
+        return Err(SError::VMMismatchArgumentListLength);
+    }
+
+    // TODO: Local scope 
+    for (p, arg) in params.iter().zip(args.iter()) {
+        execute_assign(&Box::new(Expr::VarRef(p.clone())), &Box::new(arg.clone()), ctx)?;
+    }
+
+    execute_expr(&body, ctx)
+}
+
 fn execute_add(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
-    let SValue::Number(l) = execute(lhs, ctx)?.to_number()? else { panic!() };
-    let SValue::Number(r) = execute(rhs, ctx)?.to_number()? else { panic!() };
+    let SValue::Number(l) = execute_expr(lhs, ctx)?.to_number()? else { panic!() };
+    let SValue::Number(r) = execute_expr(rhs, ctx)?.to_number()? else { panic!() };
     Ok(SValue::Number(l + r))
 }
 
 fn execute_assign(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
     let Expr::VarRef(var) = &**lhs else { return Err(SError::VMCannotAssignNonVariable) };
-    let rhs = execute(rhs, ctx)?;
+    let rhs = execute_expr(rhs, ctx)?;
     match ctx.vars.get_mut(var) {
         None => { ctx.vars.insert(var.clone(), Rc::new(RefCell::new(rhs))); },
         Some(value) => { *value.borrow_mut() = rhs; },
@@ -78,20 +94,25 @@ fn execute_binary_op(op : &String, lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mu
     }
 }
 
-pub fn execute(e : &Expr, ctx : &mut SContext) -> SRes<SValue> {
+fn execute_expr(e : &Expr, ctx : &mut SContext) -> SRes<SValue> {
     match e {
         Expr::None => execute_none(ctx),
         Expr::Number(x) => execute_number(*x, ctx),
         Expr::Bool(value) => execute_bool(*value, ctx),
         Expr::Block(exprs) => execute_block(exprs, ctx),
         Expr::Function { params, body } => execute_function(params, body, ctx),
+        Expr::Call { callee, args } => execute_call(callee, args, ctx),
         Expr::BinaryOp { op, lhs, rhs } => execute_binary_op(op, lhs, rhs, ctx),
-        _ => todo!(),
+        _ => todo!("{:?}", e),
     }
 }
 
 pub fn execute_str(s : &str, ctx : &mut SContext) -> SRes<SValue> {
-    execute(&parse_str(s)?, ctx)
+    execute_expr(&parse_str(s)?, ctx)
+}
+
+pub fn execute_string(s : &String, ctx : &mut SContext) -> SRes<SValue> {
+    execute_str(&*s, ctx)
 }
 
 #[test]
@@ -188,4 +209,25 @@ fn test_function() {
         params: vec!["x".to_string(), "y".to_string()],
         body: Expr::Number(0),
     }))));
+}
+
+#[test]
+fn test_call() {
+    let mut ctx = SContext::new();
+    execute_str("fn zero() 0", &mut ctx).unwrap();
+    execute_str("fn one() 1", &mut ctx).unwrap();
+    execute_str("foo = 0", &mut ctx).unwrap();
+    assert_eq!(execute_str("zero()", &mut ctx), Ok(SValue::Number(0)));
+    assert_eq!(execute_str("one()", &mut ctx), Ok(SValue::Number(1)));
+    assert_eq!(execute_str("bar()", &mut ctx), Err(SError::VMVariableDoesntExist));
+    assert_eq!(execute_str("foo()", &mut ctx), Err(SError::VMCannotCallNonFunction));
+    assert_eq!(execute_str("one(1)", &mut ctx), Err(SError::VMMismatchArgumentListLength));
+
+    // TODO: Test correct params values
+}
+
+#[test]
+fn test_full() {
+    let mut ctx = SContext::new();
+    assert_eq!(execute_str("{fn zero() 0 zero()}", &mut ctx), Ok(SValue::Number(0)));
 }

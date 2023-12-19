@@ -14,8 +14,14 @@ pub enum SError {
     ParserInvalidFunctionExpectedParam,
     ParserInvalidFunctionInvalidToken,
 
+    ParserInvalidCallNoLParen,
+    ParserInvalidCallMissingComma,
+
     VMCannotConvertToNumber,
     VMCannotAssignNonVariable,
+    VMCannotCallNonFunction,
+    VMMismatchArgumentListLength,
+    VMVariableDoesntExist,
 }
 
 pub type SRes<T> = Result<T, SError>;
