@@ -1,7 +1,9 @@
 #[derive(Debug, PartialEq)]
 pub enum ParserError {
     EOF,
+
     InvalidNumber,
+
     InvalidFunctionNoName,
     InvalidFunctionNoLParen,
     InvalidFunctionMissingComma,
