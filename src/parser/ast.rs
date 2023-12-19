@@ -12,6 +12,12 @@ pub enum Expr {
         body : Box<Expr>,
     },
     Return(Box<Expr>),
+    VarRef(String),
+    BinaryOp{
+        op: String,
+        lhs : Box<Expr>,
+        rhs : Box<Expr>,
+    },
 }
 
 fn peektok(toks : &mut Peekable<Tokens>) -> ParserRes<Token> {
@@ -83,14 +89,53 @@ fn parse_return(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     return Ok(Expr::Return(Box::new(parse(toks)?)))
 }
 
-fn parse_tok(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+fn parse_identifier(s : &String, _toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    Ok(Expr::VarRef(s.clone()))
+}
+
+fn parse_primary(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
     match t {
         Token::Number(s) => parse_number(&s, toks),
         Token::LBrack => parse_block(toks),
         Token::Function => parse_function(toks),
         Token::Return => parse_return(toks),
+        Token::Identifier(s) => parse_identifier(&s, toks),
         _ => todo!("{:?}", t),
     }
+}
+
+fn parse_binop_rhs(expr_prec : i32, mut lhs : Expr, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    loop {
+        let tok_prec = peektok(toks)?.get_precedence();
+        if tok_prec < expr_prec {
+            return Ok(lhs)
+        }
+
+        let op = nexttok(toks)?.to_string();
+
+        match parse_primary(peektok(toks)?, toks) {
+            Ok(mut rhs) => {
+                let next_prec = peektok(toks)?.get_precedence();
+                if tok_prec < next_prec {
+                    rhs = parse_binop_rhs(tok_prec+1, rhs, toks)?;
+                }
+
+                lhs = Expr::BinaryOp{ op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+            },
+            Err(ParserError::EOF) => return Ok(lhs),
+            Err(err) => return Err(err),
+        }
+
+    }
+}
+
+fn parse_tok(t : Token, toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
+    let lhs = parse_primary(t, toks)?;
+    if let Err(ParserError::EOF) = peektok(toks) {
+        return Ok(lhs);
+    }
+
+    parse_binop_rhs(0, lhs, toks)
 }
 
 pub fn parse(toks : &mut Peekable<Tokens>) -> ParserRes<Expr> {
@@ -130,4 +175,16 @@ fn test_parse_function() {
     assert_eq!(parse_str("fn main (,x) {}"), Err(ParserError::InvalidFunctionExtraComma));
     assert_eq!(parse_str("fn main (x,) {}"), Err(ParserError::InvalidFunctionExpectedParam));
     assert_eq!(parse_str("fn main (fn x) {}"), Err(ParserError::InvalidFunctionInvalidToken));
+}
+
+#[test]
+fn test_parse_varref() {
+    assert_eq!(parse_str("x"), Ok(Expr::VarRef("x".to_string())));
+}
+
+#[test]
+fn test_parse_binaryop() {
+    assert_eq!(parse_str("x = 0"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::Number(0)) }));
+    assert_eq!(parse_str("x = y"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::VarRef("x".to_string())), rhs: Box::new(Expr::VarRef("y".to_string())) }));
+    assert_eq!(parse_str("0 = x"), Ok(Expr::BinaryOp { op: "=".to_string(),  lhs: Box::new(Expr::Number(0)), rhs: Box::new(Expr::VarRef("x".to_string())) }));
 }
