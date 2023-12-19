@@ -12,6 +12,7 @@ pub enum Token {
 
     LParen, RParen, // ( )
     LBrack, RBrack, // { }
+    Comma, SemiColon, // , ;
 }
 
 fn skip_whitespace(chars : &mut Peekable<Chars>) -> LexerRes<char> {
@@ -62,6 +63,7 @@ pub fn gettok(chars : &mut Peekable<Chars>) -> LexerRes<Token> {
         match c {
             '(' => Ok(Token::LParen), ')' => Ok(Token::RParen),
             '{' => Ok(Token::LBrack), '}' => Ok(Token::RBrack),
+            ',' => Ok(Token::Comma), ';' => Ok(Token::SemiColon),
             _ => todo!(),
         }
     }
