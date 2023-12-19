@@ -7,6 +7,7 @@ pub enum SValue {
     None,
     Number(i32),
     Bool(bool),
+    Function{ params: Vec<String>, body: Expr },
 }
 
 impl SValue {
@@ -15,7 +16,7 @@ impl SValue {
             SValue::None => Ok(SValue::Number(0)),
             SValue::Number(x) => Ok(SValue::Number(*x)),
             SValue::Bool(value) => Ok(SValue::Number(*value as i32)),
-            _ => todo!(),
+            _ => Err(SError::VMCannotConvertToNumber),
         }
     }
 }
@@ -32,20 +33,24 @@ impl SContext {
     }
 }
 
-fn execute_none(ctx : &mut SContext) -> SRes<SValue> {
+fn execute_none(_ctx : &mut SContext) -> SRes<SValue> {
     Ok(SValue::None)
 }
 
-fn execute_number(x : i32, ctx : &mut SContext) -> SRes<SValue> {
+fn execute_number(x : i32, _ctx : &mut SContext) -> SRes<SValue> {
     Ok(SValue::Number(x))
 }
 
-fn execute_bool(value : bool, ctx : &mut SContext) -> SRes<SValue> {
+fn execute_bool(value : bool, _ctx : &mut SContext) -> SRes<SValue> {
     Ok(SValue::Bool(value))
 }
 
 fn execute_block(exprs : &Vec<Expr>, ctx : &mut SContext) -> SRes<SValue> {
     exprs.iter().fold(Ok(SValue::None), |_, e| Ok(execute(e, ctx)?))
+}
+
+fn execute_function(params : &Vec<String>, body : &Expr, _ctx : &mut SContext) -> SRes<SValue> {
+    Ok(SValue::Function { params: params.clone(), body: body.clone() })
 }
 
 fn execute_add(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
@@ -79,6 +84,7 @@ pub fn execute(e : &Expr, ctx : &mut SContext) -> SRes<SValue> {
         Expr::Number(x) => execute_number(*x, ctx),
         Expr::Bool(value) => execute_bool(*value, ctx),
         Expr::Block(exprs) => execute_block(exprs, ctx),
+        Expr::Function { params, body } => execute_function(params, body, ctx),
         Expr::BinaryOp { op, lhs, rhs } => execute_binary_op(op, lhs, rhs, ctx),
         _ => todo!(),
     }
@@ -174,3 +180,12 @@ fn test_assign() {
     assert_eq!(ctx.vars.get("y"), Some(&Rc::new(RefCell::new(SValue::Number(2)))));
 }
 
+#[test]
+fn test_function() {
+    let mut ctx = SContext::new();
+    execute_str("fn main(x, y) 0", &mut ctx).unwrap();
+    assert_eq!(ctx.vars.get("main"), Some(&Rc::new(RefCell::new(SValue::Function{
+        params: vec!["x".to_string(), "y".to_string()],
+        body: Expr::Number(0),
+    }))));
+}

@@ -14,6 +14,7 @@ pub enum SError {
     ParserInvalidFunctionExpectedParam,
     ParserInvalidFunctionInvalidToken,
 
+    VMCannotConvertToNumber,
     VMCannotAssignNonVariable,
 }
 
