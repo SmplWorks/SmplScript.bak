@@ -27,7 +27,7 @@ pub struct SContext {
 }
 
 impl SContext {
-    fn new() -> SContext {
+    pub fn new() -> SContext {
         SContext{
             vars: HashMap::new(),
         }
