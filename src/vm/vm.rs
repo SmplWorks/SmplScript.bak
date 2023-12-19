@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::rc::Rc;
-
+use std::{collections::HashMap, cell::RefCell, rc::Rc};
 use crate::parser::{Expr, parse_str};
 use crate::utils::{SError, SRes};
 
@@ -23,11 +21,13 @@ impl SValue {
 }
 
 pub struct SContext {
+    vars : HashMap<String, Rc<RefCell<SValue>>>,
 }
 
 impl SContext {
     fn new() -> SContext {
         SContext{
+            vars: HashMap::new(),
         }
     }
 }
@@ -54,8 +54,20 @@ fn execute_add(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<
     Ok(SValue::Number(l + r))
 }
 
+fn execute_assign(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
+    let Expr::VarRef(var) = &**lhs else { return Err(SError::VMCannotAssignNonVariable) };
+    let rhs = execute(rhs, ctx)?;
+    match ctx.vars.get_mut(var) {
+        None => { ctx.vars.insert(var.clone(), Rc::new(RefCell::new(rhs))); },
+        Some(value) => { *value.borrow_mut() = rhs; },
+    }
+
+    Ok(SValue::None)
+}
+
 fn execute_binary_op(op : &String, lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
     match &**op { // TODO: Call op on lhs with rhs
+        "=" => execute_assign(lhs, rhs, ctx),
         "+" => execute_add(lhs, rhs, ctx),
         _ => todo!(), // TODO: Custom binary ops
     }
@@ -143,3 +155,22 @@ fn test_binary_op() {
     //assert_eq!(execute_str("none or false"), Ok(SValue::Bool(false)));
     //assert_eq!(execute_str("none or none"), Ok(SValue::Bool(false)));
 }
+
+#[test]
+fn test_assign() {
+    let mut ctx = SContext::new();
+    execute_str("x = 1", &mut ctx).unwrap();
+    assert_eq!(ctx.vars.get("x"), Some(&Rc::new(RefCell::new(SValue::Number(1)))));
+
+    let mut ctx = SContext::new();
+    execute_str("x = 1", &mut ctx).unwrap();
+    execute_str("x = 2", &mut ctx).unwrap();
+    assert_eq!(ctx.vars.get("x"), Some(&Rc::new(RefCell::new(SValue::Number(2)))));
+
+    let mut ctx = SContext::new();
+    execute_str("x = 1", &mut ctx).unwrap();
+    execute_str("y = 2", &mut ctx).unwrap();
+    assert_eq!(ctx.vars.get("x"), Some(&Rc::new(RefCell::new(SValue::Number(1)))));
+    assert_eq!(ctx.vars.get("y"), Some(&Rc::new(RefCell::new(SValue::Number(2)))));
+}
+

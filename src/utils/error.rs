@@ -13,6 +13,8 @@ pub enum SError {
     ParserInvalidFunctionExtraComma,
     ParserInvalidFunctionExpectedParam,
     ParserInvalidFunctionInvalidToken,
+
+    VMCannotAssignNonVariable,
 }
 
 pub type SRes<T> = Result<T, SError>;
