@@ -32,6 +32,14 @@ impl SContext {
             vars: HashMap::new(),
         }
     }
+
+    fn child(&self) -> SContext {
+        let mut child = SContext::new();
+        for (k, v) in self.vars.iter() {
+            child.vars.insert(k.clone(), Rc::clone(v));
+        }
+        return child
+    }
 }
 
 fn execute_none(_ctx : &mut SContext) -> SRes<SValue> {
@@ -62,11 +70,12 @@ fn execute_call(callee : &String, args : &Vec<Expr>, ctx : &mut SContext) -> SRe
     }
 
     // TODO: Local scope 
+    let mut child_ctx = ctx.child();
     for (p, arg) in params.iter().zip(args.iter()) {
-        execute_assign(&Box::new(Expr::VarRef(p.clone())), &Box::new(arg.clone()), ctx)?;
+        execute_assign(&Box::new(Expr::VarRef(p.clone())), &Box::new(arg.clone()), &mut child_ctx)?;
     }
 
-    execute_expr(&body, ctx)
+    execute_expr(&body, &mut child_ctx)
 }
 
 fn execute_add(lhs : &Box<Expr>, rhs : &Box<Expr>, ctx : &mut SContext) -> SRes<SValue> {
@@ -224,6 +233,11 @@ fn test_call() {
     assert_eq!(execute_str("one(1)", &mut ctx), Err(SError::VMMismatchArgumentListLength));
 
     // TODO: Test correct params values
+
+    let mut ctx = SContext::new();
+    execute_str("fn one(x) 1", &mut ctx).unwrap();
+    execute_str("one(1)", &mut ctx).unwrap();
+    assert_eq!(ctx.vars.get("x"), None);
 }
 
 #[test]
